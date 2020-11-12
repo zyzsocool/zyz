@@ -6,12 +6,12 @@ outaddress='./结果.xlsx'
 
 file=os.listdir(address)
 df=pd.DataFrame()
-file[0]=pd.read_excel(address+'\\'+file[0],header=2)
-df=reduce(lambda x,y:pd.concat([x,pd.read_excel(address+'\\'+y,header=2)]),file)
+file[0]=pd.read_excel(address+'\\'+file[0],header=3)
+df=reduce(lambda x,y:pd.concat([x,pd.read_excel(address+'\\'+y,header=3)]),file)
 
+df=df[['交易日','回购方向','交易对手','回购期限(天)','回购利率(%)','交易金额(元)','交易员','新阶段1','新阶段2','新阶段3','新阶段4','新阶段5','备注1']].copy()
 
-df=df[['交易日','回购方向','交易对手','回购期限(天)','回购利率(%)','交易金额(元)','交易员','新阶段1','新阶段2','新阶段3','新阶段4','新阶段5','备注1']]
-df['交易金额(元)']=df['交易金额(元)'].str.replace(',', '').astype(float)
+df['交易金额(元)']=df['交易金额(元)'].apply(lambda x: float(x.replace(',', '')))
 group=df.groupby(['交易日','回购方向','交易对手','回购期限(天)','回购利率(%)'])
 def onename(allname):
     namelist=[]
