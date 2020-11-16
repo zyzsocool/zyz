@@ -10,7 +10,7 @@ pd.set_option('display.unicode.east_asian_width', True)
 
 
 basedate=datetime.datetime(2020, 10, 31)
-forcastdate=datetime.datetime(2020, 11, 10)
+forcastdate=datetime.datetime(2020, 11, 13)
 forcasbasedate=datetime.datetime(2020, 11, 30)
 address='C:\\Users\\zyzse\\Desktop\\预测流动性'
 filelist=os.listdir(address)
@@ -71,29 +71,59 @@ print('金融市场部最新数据：')
 print(forcastlist)
 forcastlist.loc[forcastlist[forcastlist['item1'] == '债券基金'].index.tolist()[0], 'bal']= forcastlist[forcastlist['item1'].str.contains('定制型基金')]['bal'].sum() + forcastlist[forcastlist['item1'] == '债券基金']['bal'].sum()
 forcastlist=forcastlist.append({'item1': '自营投资（非存单）', 'item0': '资产', 'bal':sum(forcastlist[forcastlist['item1'].isin(['公共事业债', '国债', '国有产业债', '国际机构债', '地方政府债', '政策性银行', '民营企业债', '资产支持证券', '金融行业债', '非标资产'])]['bal'])}, ignore_index=True)
-print(forcastlist[forcastlist['item1'].isin(['公共事业债', '国债', '国有产业债', '国际机构债', '地方政府债', '政策性银行', '民营企业债', '资产支持证券', '金融行业债', '非标资产'])])
+
 forcastlist=forcastlist.copy()
 forcastlist=forcastlist.applymap(lambda x: '发行同业存单' if x == '同业存单发行' else x)
 forcastlist=forcastlist.applymap(lambda x: '投资同业存单' if x == '同业存单' else x)
 forcastlist=forcastlist.applymap(lambda x: '资管计划' if x == '银登中心' else x)
 df=pd.merge(df,forcastlist,left_on='大类', right_on='item1', how='outer')
 
+#计算到期
+forcastlist2=pd.read_excel(forcastlist_file)
+forcastlist2=forcastlist2[['item0', 'item1', 'item2', 'item3', 'due_dt', 'bal']]
+inter=forcastlist2[forcastlist2['due_dt']<=forcasbasedate]
+inter=inter[inter['item1'].isin(['货币基金','债券基金'])==False]
+inter=inter.groupby('item0').agg(sum)
+forcastlist21=forcastlist2[forcastlist2['due_dt']>forcasbasedate ]
+forcastlist22=forcastlist2[forcastlist2['item1'].isin(['货币基金','债券基金'])]
+forcastlist2=pd.concat([forcastlist21,forcastlist22])
+forcastlist2['sum']=forcastlist2.apply(lambda x: 'Y' if ((x['due_dt'] - forcasbasedate).days <= 90 or 'TPL' in str(x['item3']) or x['item1'] == '货币基金') and (not '基金' in str(x['item3'])) else 'N', axis=1)
+forcastlist2=forcastlist2[forcastlist2['sum'] == 'Y']
+forcastlist2=forcastlist2.groupby(['item1', 'item0'], as_index=False).agg(sum)
+print('金融市场部最新预测数据：')
+print(forcastlist2)
+forcastlist2.loc[forcastlist2[forcastlist2['item1'] == '债券基金'].index.tolist()[0], 'bal']= forcastlist2[forcastlist2['item1'].str.contains('定制型基金')]['bal'].sum() + forcastlist2[forcastlist2['item1'] == '债券基金']['bal'].sum()
+forcastlist2=forcastlist2.append({'item1': '自营投资（非存单）', 'item0': '资产', 'bal':sum(forcastlist2[forcastlist2['item1'].isin(['公共事业债', '国债', '国有产业债', '国际机构债', '地方政府债', '政策性银行', '民营企业债', '资产支持证券', '金融行业债', '非标资产'])]['bal'])}, ignore_index=True)
+
+forcastlist2=forcastlist2.copy()
+forcastlist2=forcastlist2.applymap(lambda x: '发行同业存单' if x == '同业存单发行' else x)
+forcastlist2=forcastlist2.applymap(lambda x: '投资同业存单' if x == '同业存单' else x)
+forcastlist2=forcastlist2.applymap(lambda x: '资管计划' if x == '银登中心' else x)
 
 
 
-
-
-
-
-
+df=pd.merge(df,forcastlist2,left_on='大类', right_on='item1', how='outer')
 print(df)
-df=df[['大类','item0_x','人民币（万元）','bal_x','bal_y']]
+df.to_excel(address+'\\123.xlsx')
+df=df[['大类','item0_x','人民币（万元）','bal_x','bal_y','bal']]
 df=df[pd.isna(df['大类'])==False]
 df=df.groupby('item0_x').agg(sum)
 df['result']=-df['bal_x']+df['bal_y']
+df['result2']=-df['bal_x']+df['bal']
 print(df)
+
 ratio_forcast=((asset_sum+df['result']['资产'])-(debt_sum+(df['result']['负债']))+deposit_def)/(asset_sum+df['result']['资产'])
-
-print('基准日实际：'+str(ratio_real))
-print('预测日当日预测：'+str(ratio_forcast))
-
+intercal=inter['bal']['资产']-inter['bal']['负债']
+print(inter)
+print(intercal)
+if intercal>0:
+    ratio_forcast2=((asset_sum+df['result2']['资产']+intercal)-(debt_sum+(df['result2']['负债']))+deposit_def)/(asset_sum+df['result2']['资产']+intercal)
+else:
+    ratio_forcast2 = ((asset_sum + df['result2']['资产']) - (
+                debt_sum + (df['result2']['负债'])-intercal) + deposit_def) / (asset_sum + df['result2']['资产'])
+print(asset_sum)
+print(debt_sum)
+print(deposit_def)
+print('基准日实际流动性缺口率：'+str(ratio_real))
+print('预测日当日流动性缺口率：'+str(ratio_forcast))
+print('消极处理至月末流动性缺口率：'+str(ratio_forcast2))
